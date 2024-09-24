@@ -775,6 +775,10 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 			"event_index":              auditConfig.Backends.Splunk.Index,
 			"event_host":               cluster.ObjectMeta.Name,
 		}
+		for name, value := range auditConfig.Backends.Splunk.Fields {
+			// TODO event_field can occur multiple times
+			splunkConfig["event_field"] = fmt.Sprintf("%s %s", name, value)
+		}
 
 		if auditConfig.Backends.Splunk.TlsEnabled {
 			splunkConfig["tls"] = "on"

@@ -119,4 +119,7 @@ type AuditBackendSplunk struct {
 
 	// TlsHost is the hostname that fluent-bit should request through SNI when connecting to a site that serves different hostnames under one IP.
 	TlsHost string `json:"tlshost,omitempty"`
+
+	// Fields contains a map of custom event fields
+	Fields map[string]string `json:"fields,omitempty"`
 }
