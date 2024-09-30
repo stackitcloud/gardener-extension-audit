@@ -362,9 +362,9 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 					// the null backend is for the case when no backends are configured and fluentbit will still start up
 					// as when this happens, it will fail because the backend conf include does not match any file
 					Output: []fluentbitconfig.Output{
-						map[string]string{
-							"match": "audit",
-							"name":  "null",
+						map[string][]string{
+							"match": {"audit"},
+							"name":  {"null"},
 						},
 					},
 				}.Generate(),
@@ -569,11 +569,11 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 	if pointer.SafeDeref(auditConfig.Backends.Log).Enabled {
 		fluentbitConfigMap.Data["log.backend.conf"] = fluentbitconfig.Config{
 			Output: []fluentbitconfig.Output{
-				map[string]string{
-					"match":                    "audit",
-					"name":                     "stdout",
-					"retry_limit":              "no_limits", // let fluent-bit never discard any data
-					"storage.total_limit_size": "10M",
+				map[string][]string{
+					"match":                    {"audit"},
+					"name":                     {"stdout"},
+					"retry_limit":              {"no_limits"}, // let fluent-bit never discard any data
+					"storage.total_limit_size": {"10M"},
 				},
 			},
 		}.Generate()
@@ -585,22 +585,22 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 			return nil, fmt.Errorf("failed to find gardener-vpn-gateway image: %w", err)
 		}
 
-		forwardingConfig := map[string]string{
-			"match":                    "audit",
-			"name":                     "forward",
-			"retry_limit":              "no_limits", // let fluent-bit never discard any data
-			"storage.total_limit_size": pointer.SafeDeref(auditConfig.Backends.ClusterForwarding.FilesystemBufferSize),
-			"host":                     "audit-cluster-forwarding-vpn-gateway",
-			"port":                     "9876",
-			"require_ack_response":     "True",
-			"compress":                 "gzip",
-			"tls":                      "On",
-			"tls.verify":               "On",
-			"tls.debug":                "2",
-			"tls.ca_file":              "/backends/cluster-forwarding/certs/ca.crt",
-			"tls.crt_file":             "/backends/cluster-forwarding/certs/tls.crt",
-			"tls.key_file":             "/backends/cluster-forwarding/certs/tls.key",
-			"tls.vhost":                "audittailer",
+		forwardingConfig := map[string][]string{
+			"match":                    {"audit"},
+			"name":                     {"forward"},
+			"retry_limit":              {"no_limits"}, // let fluent-bit never discard any data
+			"storage.total_limit_size": {pointer.SafeDeref(auditConfig.Backends.ClusterForwarding.FilesystemBufferSize)},
+			"host":                     {"audit-cluster-forwarding-vpn-gateway"},
+			"port":                     {"9876"},
+			"require_ack_response":     {"True"},
+			"compress":                 {"gzip"},
+			"tls":                      {"On"},
+			"tls.verify":               {"On"},
+			"tls.debug":                {"2"},
+			"tls.ca_file":              {"/backends/cluster-forwarding/certs/ca.crt"},
+			"tls.crt_file":             {"/backends/cluster-forwarding/certs/tls.crt"},
+			"tls.key_file":             {"/backends/cluster-forwarding/certs/tls.key"},
+			"tls.vhost":                {"audittailer"},
 		}
 
 		fluentbitConfigMap.Data["clusterforwarding.backend.conf"] = fluentbitconfig.Config{
@@ -761,30 +761,35 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 	}
 
 	if pointer.SafeDeref(auditConfig.Backends.Splunk).Enabled {
-		splunkConfig := map[string]string{
-			"match":                    "audit",
-			"name":                     "splunk",
-			"retry_limit":              "no_limits", // let fluent-bit never discard any data
-			"storage.total_limit_size": pointer.SafeDeref(auditConfig.Backends.Splunk.FilesystemBufferSize),
-			"host":                     auditConfig.Backends.Splunk.Host,
-			"port":                     auditConfig.Backends.Splunk.Port,
-			"splunk_token":             "${SPLUNK_HEC_TOKEN}",
-			"splunk_send_raw":          "off",
-			"event_source":             "statefulset:" + auditwebhookStatefulSet.Name,
-			"event_sourcetype":         "kube:apiserver:auditlog",
-			"event_index":              auditConfig.Backends.Splunk.Index,
-			"event_host":               cluster.ObjectMeta.Name,
+		splunkConfig := map[string][]string{
+			"match":                    {"audit"},
+			"name":                     {"splunk"},
+			"retry_limit":              {"no_limits"}, // let fluent-bit never discard any data
+			"storage.total_limit_size": {pointer.SafeDeref(auditConfig.Backends.Splunk.FilesystemBufferSize)},
+			"host":                     {auditConfig.Backends.Splunk.Host},
+			"port":                     {auditConfig.Backends.Splunk.Port},
+			"splunk_token":             {"${SPLUNK_HEC_TOKEN}"},
+			"splunk_send_raw":          {"off"},
+			"event_source":             {"statefulset:" + auditwebhookStatefulSet.Name},
+			"event_sourcetype":         {"kube:apiserver:auditlog"},
+			"event_index":              {auditConfig.Backends.Splunk.Index},
+			"event_host":               {cluster.ObjectMeta.Name},
 		}
+
+		// The event_field key can occur multiple times in the splunk config file format.
+		eventFields := make([]string, 0, len(auditConfig.Backends.Splunk.Fields))
 		for name, value := range auditConfig.Backends.Splunk.Fields {
-			// TODO event_field can occur multiple times
-			splunkConfig["event_field"] = fmt.Sprintf("%s %s", name, value)
+			eventFields = append(eventFields, fmt.Sprintf("%s %s", name, value))
+		}
+		if len(eventFields) > 0 {
+			splunkConfig["event_field"] = eventFields
 		}
 
 		if auditConfig.Backends.Splunk.TlsEnabled {
-			splunkConfig["tls"] = "on"
-			splunkConfig["tls.verify"] = "on"
+			splunkConfig["tls"] = []string{"on"}
+			splunkConfig["tls.verify"] = []string{"on"}
 			if auditConfig.Backends.Splunk.TlsHost != "" {
-				splunkConfig["tls.vhost"] = auditConfig.Backends.Splunk.TlsHost
+				splunkConfig["tls.vhost"] = []string{auditConfig.Backends.Splunk.TlsHost}
 			}
 		}
 
@@ -812,7 +817,7 @@ func seedObjects(auditConfig *v1alpha1.AuditConfig, secrets map[string]*corev1.S
 
 		caFile := splunkSecretFromResources.Data[v1alpha1.SplunkSecretCaFileKey]
 		if len(caFile) > 0 {
-			splunkConfig["tls.ca_file"] = "/backends/splunk/certs/ca.crt"
+			splunkConfig["tls.ca_file"] = []string{"/backends/splunk/certs/ca.crt"}
 
 			splunkSecret.Data["ca.crt"] = caFile
 
