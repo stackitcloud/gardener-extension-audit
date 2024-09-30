@@ -25,12 +25,13 @@ func TestConfig_Generate(t *testing.T) {
 					},
 				},
 				Output: []Output{
-					map[string]string{
-						"name":  "    stdout  ",
-						"match": "*",
+					{
+						"name":        {"    stdout  "},
+						"match":       {"*"},
+						"event_field": {"key1 value1", "key2 value2"},
 					},
-					map[string]string{
-						"name": "null",
+					{
+						"name": {"null"},
 					},
 				},
 				Includes: []Include{
@@ -45,6 +46,8 @@ func TestConfig_Generate(t *testing.T) {
     name http
 
 [OUTPUT]
+    event_field key1 value1
+    event_field key2 value2
     match *
     name stdout
 [OUTPUT]
@@ -56,13 +59,16 @@ func TestConfig_Generate(t *testing.T) {
 			name: "only output section",
 			config: &Config{
 				Output: []Output{
-					map[string]string{
-						"name":  "stdout",
-						"match": "*",
+					map[string][]string{
+						"name":        {"stdout"},
+						"match":       {"*"},
+						"event_field": {"key1 value1", "key2 value2"},
 					},
 				},
 			},
 			want: `[OUTPUT]
+    event_field key1 value1
+    event_field key2 value2
     match *
     name stdout`,
 		},
@@ -72,6 +78,40 @@ func TestConfig_Generate(t *testing.T) {
 			got := tt.config.Generate()
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Logf("Got:\n\n%s\n", got)
+				t.Errorf("diff: %s", diff)
+			}
+		})
+	}
+}
+
+func TestOutput_Add(t *testing.T) {
+	tt := []struct {
+		desc      string
+		values    []string
+		newValues []string
+		expected  []string
+	}{
+		{
+			desc:      "add to new key",
+			values:    nil,
+			newValues: []string{"one"},
+			expected:  []string{"one"},
+		},
+		{
+			desc:      "add to existing key",
+			values:    []string{"one"},
+			newValues: []string{"two"},
+			expected:  []string{"one", "two"},
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.desc, func(t *testing.T) {
+			key := "key"
+			config := Output{key: tc.values}
+			config.Add(key, tc.newValues...)
+
+			if diff := cmp.Diff(tc.expected, config[key]); diff != "" {
+				t.Logf("Got:\n\n%+v\n", config)
 				t.Errorf("diff: %s", diff)
 			}
 		})
