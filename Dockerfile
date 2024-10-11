@@ -9,4 +9,4 @@ FROM alpine:3.20
 WORKDIR /
 COPY charts /charts
 COPY --from=builder /go/bin/gardener-extension-audit /gardener-extension-audit
-CMD ["/gardener-extension-audit"]
+ENTRYPOINT ["/gardener-extension-audit"]
