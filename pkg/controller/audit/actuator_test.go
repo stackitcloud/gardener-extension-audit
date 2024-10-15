@@ -6,10 +6,9 @@ import (
 
 	"github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/extensions"
+	"github.com/metal-stack/gardener-extension-audit/pkg/apis/audit/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/metal-stack/gardener-extension-audit/pkg/apis/audit/v1alpha1"
 )
 
 func TestSeedObjects_SplunkConfig_MultipleEventFields(t *testing.T) {
@@ -31,43 +30,36 @@ func TestSeedObjects_SplunkConfig_MultipleEventFields(t *testing.T) {
 		shootAccessSecretName     string
 		namespace                 string
 	)
-
 	// prepare test inputs
 	auditConfig.Backends.Splunk = &v1alpha1.AuditBackendSplunk{
 		Enabled: true,
-		Fields: map[string]string{
+		CustomData: map[string]string{
 			"key1": "value1",
 			"key2": "value2",
 		},
 	}
-
 	objects, err := seedObjects(auditConfig, secrets, cluster, splunkSecretFromResources, shootAccessSecretName, namespace)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
 	}
-
 	// inspect output
-
 	if len(objects) < 3 {
 		t.Error("returend objects slice is to small")
 		t.FailNow()
 	}
-
 	fluentbitConfigMap, ok := objects[2].(*corev1.ConfigMap)
 	if !ok {
 		t.Errorf("fluentbitConfigMap is of the wrong type %T", objects[0])
 		t.FailNow()
 	}
-
 	fluentbitConfig := fluentbitConfigMap.Data["splunk.backend.conf"]
 	if fluentbitConfig == "" {
 		t.Error("fluentbitConfig is empty")
 		t.FailNow()
 	}
-
-	if !(strings.Contains(fluentbitConfig, "event_field key1 value1") && strings.Contains(fluentbitConfig, "event_field key2 value2")) {
-		t.Errorf("fluentbitConfig does not contain both event_field entries:\n%v", fluentbitConfig)
+	if !(strings.Contains(fluentbitConfig, "[FILTER]") && strings.Contains(fluentbitConfig, "add key1 value1") && strings.Contains(fluentbitConfig, "add key2 value2")) {
+		t.Errorf("fluentbitConfig does not contain the expected custom data entries:\n%v", fluentbitConfig)
 		t.FailNow()
 	}
 }

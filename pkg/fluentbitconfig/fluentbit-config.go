@@ -10,13 +10,15 @@ type (
 	Config struct {
 		Service  Service
 		Input    []Input
+		Filter   []Filter
 		Output   []Output
 		Includes []Include
 	}
 
 	Service map[string]string
 	Input   map[string]string
-	Output  map[string][]string
+	Filter  map[string]string
+	Output  map[string]string
 	Include string
 )
 
@@ -32,11 +34,14 @@ var t = func() *template.Template {
 [INPUT]
 {{- range $key, $value := $input }}
     {{ $key | trim }} {{ $value | trim }}{{ end }}{{ end }}
+{{ range $filter := .Filter }}
+[FILTER]
+{{- range $key, $value := $filter }}
+    {{ $key | trim }} {{ $value | trim }}{{ end }}{{ end }}
 {{ range $output := .Output }}
 [OUTPUT]
-{{- range $key, $values := $output }}
-	{{- range $i, $value := $values}}
-    {{ $key | trim }} {{ $value | trim }}{{ end }}{{ end }}{{ end }}
+{{- range $key, $value := $output }}
+    {{ $key | trim }} {{ $value | trim }}{{ end }}{{ end }}
 
 {{ range $include := .Includes }}@INCLUDE {{ $include }}{{ end }}
 `)
@@ -56,10 +61,4 @@ func (c Config) Generate() string {
 	}
 
 	return strings.TrimSpace(buf.String())
-}
-
-func (o Output) Add(key string, values ...string) {
-	list := o[key]
-	list = append(list, values...)
-	o[key] = list
 }
